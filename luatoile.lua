@@ -1,9 +1,10 @@
 #!/usr/bin/env lua
--- $$DATE$$ : ven. 17 janv. 2020 16:02:53
+-- $$DATE$$ : ven. 17 janv. 2020 20:14:56
 
 local socket = require"socket"
 local client,server
 local is_running = true
+local root = "./"
 
 local function init()
   print("Running with ".. _VERSION)
@@ -16,8 +17,10 @@ local function urldecode( url)
   local decoded = string.gsub( url, "%+", " ")
   decoded = string.gsub( decoded, "%%(%x%x)",
             function(char)
+                local d = string.char(tonumber(char, 16))
+                if d == '.' then d ="" end -- minimal protection against dir exploration
                   -- receives (%x%x) and leaves longer strings
-                return string.char(tonumber(char, 16))
+                return d
             end)
   return decoded
 end
@@ -36,19 +39,20 @@ local function read_header()
 end
 
 local function whoami( header)
-  local buffer = {}
+  local buffer = { "<html><body><pre>" }
   local header = read_header()
   for k,v in pairs(header) do
     buffer[#buffer+1]= k .." = " .. v
   end
+  buffer[#buffer+1] = "</pre></body></html>"
   return table.concat(buffer,"\n")
 end
 
 local function quit()
   --TODO check it's called locally
   --print(client:getsockname())
-  client:send("disconnected")
   is_running = false
+  return "</html><body><h1>Disconnected</h1><body></html>"
 end
 
 
@@ -59,16 +63,33 @@ local function serve_client( buffer)
 
 end
 
+local function read_file( filename)
+  local buffer = nil
+  local fullpath = root .. filename
+  print ("reading : " .. fullpath)
+  local hfile = io.open( fullpath, "r")
+  if hfile then
+    buffer = hfile:read("*a")
+    hfile:close()
+  else
+    buffer = "<html><body><h1>404 : What do you want with " .. filename .. " ?</h1></body></html>"
+  end
+
+  return buffer
+end
+
 
 local function get( path)
-  local special = { ["/whoami"] = whoami, ["/quit"] = quit , ["/"] = function() return "index.html" end }
+  local special = { ["/whoami"] = whoami,
+                    ["/quit"] = quit ,
+                    ["/"] = function() return read_file("index.html") end }
   local buffer = ""
 
   if special[path] then
     buffer = special[path]()
   else
-    local header = read_header()
-    --client:send("\n" .. urldecode(path))
+    local header = read_header() -- TODO header : no use for the moment
+    buffer = read_file( urldecode(path))
     -- get file
   end
   serve_client( buffer)
@@ -92,6 +113,8 @@ local function mainloop()
     local command,path,proto = line:match("([A-Z]+)%s+(%S+)%s+(HTTP.+)")
     print (string.format('command:"%s" path:"%s" proto:"%s"',command,path,proto))
 
+    -- TODO FIXME : captures the paramaters before removing them !
+    path = string.match( path,"[^?]+") -- remove parameters from URL
     call_command( command, path)
 
     client:close()
