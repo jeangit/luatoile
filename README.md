@@ -8,6 +8,13 @@ There are two goals for this project.
 1. Packaging of projects using http frameworks, for local use on desktop.
 
 ## How to
+### deps needed
+
+1. Obviously, `lua`. Tested with 5.3 and 5.2 flavors, not with `luajit` (but should work).
+1. `luasocket`. You can install it with `luarocks` package manager, or directly from your distribution (or from the sources).
+
+It is planned to provide an all-in-one distribution for packaging projects, but for the moment, you have to install yourself tho deps.
+
 ### launch
 Launch `lunetoile.lua` and it will serve you well (even so, read [the alternatives](#alternatives-in-lua))
 
@@ -17,6 +24,7 @@ There are some tools available, you call them via the URL.
 name | action | localhost only
 -----|--------|---------------
 `/quit`|end the server| yes
+`/whoami`|returns client's header| no
 
 
 ## Alternatives in Lua
