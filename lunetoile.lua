@@ -1,5 +1,5 @@
 #!/usr/bin/env lua
--- $$DATE$$ : ven. 17 janv. 2020 20:14:56
+-- $$DATE$$ : sam. 18 janv. 2020 16:08:47
 
 local socket = require"socket"
 local client,server
@@ -57,7 +57,7 @@ end
 
 
 local function serve_client( buffer)
-  client:send( string.format("HTTP/1.0 200 OK\r\nserver: luatoile\r\ndate: %s\r\ncontent-type: text/html; charset=UTF-8\r\ncontent-length: %d\r\n\r\n",
+  client:send( string.format("HTTP/1.0 200 OK\r\nserver: lunetoile\r\ndate: %s\r\ncontent-type: text/html; charset=UTF-8\r\ncontent-length: %d\r\n\r\n",
   "Lundi 35 Mai",#buffer))
   client:send( buffer)
 
