@@ -1,5 +1,5 @@
 #!/usr/bin/env lua
--- $$DATE$$ : sam. 18 janv. 2020 16:08:47
+-- $$DATE$$ : sam. 18 janv. 2020 17:04:02
 
 local socket = require"socket"
 local client,server
@@ -26,7 +26,7 @@ local function urldecode( url)
 end
 
 
-local function read_header()
+local function read_header( client)
   local header = {}
   repeat
     line = client:receive()
@@ -36,31 +36,6 @@ local function read_header()
     end
   until line == ""
   return header
-end
-
-local function whoami( header)
-  local buffer = { "<html><body><pre>" }
-  local header = read_header()
-  for k,v in pairs(header) do
-    buffer[#buffer+1]= k .." = " .. v
-  end
-  buffer[#buffer+1] = "</pre></body></html>"
-  return table.concat(buffer,"\n")
-end
-
-local function quit()
-  --TODO check it's called locally
-  --print(client:getsockname())
-  is_running = false
-  return "</html><body><h1>Disconnected</h1><body></html>"
-end
-
-
-local function serve_client( buffer)
-  client:send( string.format("HTTP/1.0 200 OK\r\nserver: lunetoile\r\ndate: %s\r\ncontent-type: text/html; charset=UTF-8\r\ncontent-length: %d\r\n\r\n",
-  "Lundi 35 Mai",#buffer))
-  client:send( buffer)
-
 end
 
 local function read_file( filename)
@@ -79,28 +54,68 @@ local function read_file( filename)
 end
 
 
-local function get( path)
+local function whoami( client)
+  local buffer = { "<html><body><pre>" }
+  local header = read_header( client)
+  for k,v in pairs(header) do
+    buffer[#buffer+1]= k .." = " .. v
+  end
+  buffer[#buffer+1] = "</pre></body></html>"
+  return table.concat(buffer,"\n")
+end
+
+local function is_localhost( client)
+  local is_local = false
+  -- getsockname returns ip,port,proto
+  local ip = client:getsockname()
+  if ip == "127.0.0.1" then is_local = true end
+
+  return is_local
+end
+
+local function quit( client)
+  local buffer = nil
+  if is_localhost( client) then
+    is_running = false
+    return "</html><body><h1>Disconnected</h1><body></html>"
+  else
+    buffer = read_file( "quit")
+  end
+
+  return buffer
+end
+
+
+local function serve_client( client, buffer)
+  client:send( string.format("HTTP/1.0 200 OK\r\nserver: lunetoile\r\ndate: %s\r\ncontent-type: text/html; charset=UTF-8\r\ncontent-length: %d\r\n\r\n",
+  "Lundi 35 Mai",#buffer))
+  client:send( buffer)
+
+end
+
+
+local function get( client, path)
   local special = { ["/whoami"] = whoami,
                     ["/quit"] = quit ,
                     ["/"] = function() return read_file("index.html") end }
   local buffer = ""
 
   if special[path] then
-    buffer = special[path]()
+    buffer = special[path]( client)
   else
-    local header = read_header() -- TODO header : no use for the moment
+    local header = read_header( client) -- TODO header : no use for the moment
     buffer = read_file( urldecode(path))
     -- get file
   end
-  serve_client( buffer)
+  serve_client( client, buffer)
 end
 
-local function call_command( command, path)
+local function call_command( client, command, path)
   local command_list = { GET = get }
   if command_list[command] then
-    command_list[command]( path)
+    command_list[command]( client, path)
   else
-    print("[error] Unknown command : client asked ",command)
+    print("[error] Unknown command : client ",client,"asked ",command)
   end
 end
 
@@ -115,7 +130,7 @@ local function mainloop()
 
     -- TODO FIXME : captures the paramaters before removing them !
     path = string.match( path,"[^?]+") -- remove parameters from URL
-    call_command( command, path)
+    call_command( client, command, path)
 
     client:close()
   end
