@@ -1,16 +1,20 @@
 #!/usr/bin/env lua
--- $$DATE$$ : sam. 18 janv. 2020 17:04:02
+-- $$DATE$$ : dim. 19 janv. 2020 20:03:48
 
 local socket = require"socket"
 local client,server
 local is_running = true
 local root = "./"
+local timeout = 1/100 --10ms
 
 local function init()
   print("Running with ".. _VERSION)
   local root = arg[1] or "index.html"
   local port = arg[2] or 8088
-  server = socket.bind("0.0.0.0", 8088)
+  server = socket.bind( "0.0.0.0", 8088)
+  if not server:settimeout( timeout) then
+    print("[ERROR] init()->server:settimeout")
+  end
 end
 
 local function urldecode( url)
@@ -122,17 +126,22 @@ end
 local function mainloop()
   while is_running do
     client = server.accept( server)
-    
-    -- first line : contains command, path, protocol
-    local line = client:receive()
-    local command,path,proto = line:match("([A-Z]+)%s+(%S+)%s+(HTTP.+)")
-    print (string.format('command:"%s" path:"%s" proto:"%s"',command,path,proto))
+    if client then
 
-    -- TODO FIXME : captures the paramaters before removing them !
-    path = string.match( path,"[^?]+") -- remove parameters from URL
-    call_command( client, command, path)
+      -- first line : contains command, path, protocol
+      local line = client:receive()
+      local command,path,proto = line:match("([A-Z]+)%s+(%S+)%s+(HTTP.+)")
+      print (string.format('command:"%s" path:"%s" proto:"%s"',command,path,proto))
 
-    client:close()
+      local args = nil
+      path,args = string.match( path,"(.*)%?(.*)")
+      print(args)
+
+      path = string.match( path,"[^?]+") -- remove parameters from URL
+      call_command( client, command, path)
+
+      client:close()
+    end
   end
 end
 

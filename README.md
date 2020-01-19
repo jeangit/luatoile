@@ -31,6 +31,7 @@ name | action | localhost only
 - [ ] parallelized clients.
 - [ ] cookies. :cookie:
 - [ ] config file.
+- [ ] https.<sub>with localhost, seriously ?!</sub>
 - [x] TODO list
 
 
