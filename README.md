@@ -26,6 +26,13 @@ name | action | localhost only
 `/quit`|end the server| yes
 `/whoami`|returns client's header| no
 
+## :construction: TODO :construction:
+- [x] serving files to clients.
+- [] parallelized clients.
+- [] cookies. :cookie:
+- [] config file.
+- [x] TODO list
+
 
 ## Alternatives in Lua
 This project is for __private use__, or at most, not farthest than your LAN.
@@ -37,7 +44,7 @@ name | link
 luahttp|https://github.com/daurnimator/lua-http
 openresty|http://openresty.org/en/
 
-## don't read this
+## Don't read this
 __lunetoile__ is a pseudo-word made with two french words : *lune* and *étoile*.
 
 You can translate it as *moonweb* (moon :arrow_right: lua/lune , web :arrow_right: toile).
