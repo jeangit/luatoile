@@ -1,5 +1,5 @@
 #!/usr/bin/env lua
--- $$DATE$$ : lun. 20 janv. 2020 14:00:22
+-- $$DATE$$ : lun. 20 janv. 2020 14:14:34
 
 local socket = require"socket"
 local client,server
@@ -91,7 +91,12 @@ end
 
 
 local function serve_client( client, buffer, args)
-  local cookie = "Cookie: " .. args --just a quick test (FIXME remove)
+--[[
+  Cookies are either "session cookies" which typically are forgotten when the session is over which is often translated to equal when browser quits, or the cookies aren't session cookies they have expiration dates after which the client will throw them away.
+--]]
+-- Cookies are set to the client with the Set-Cookie: header and are sent to servers with the Cookie: header.
+  local cookie = "Set-Cookie: " .. args --just a quick test (FIXME remove)
+
 
   client:send( string.format("HTTP/1.0 200 OK\r\nserver: lunetoile\r\ndate: %s\r\ncontent-type: text/html; charset=UTF-8\r\ncontent-length: %d\r\n%s\r\n",
   "Lundi 35 Mai",#buffer, cookie or ""))
