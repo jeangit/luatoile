@@ -1,5 +1,5 @@
 #!/usr/bin/env lua
--- $$DATE$$ : dim. 19 janv. 2020 20:03:48
+-- $$DATE$$ : lun. 20 janv. 2020 14:00:22
 
 local socket = require"socket"
 local client,server
@@ -90,34 +90,37 @@ local function quit( client)
 end
 
 
-local function serve_client( client, buffer)
-  client:send( string.format("HTTP/1.0 200 OK\r\nserver: lunetoile\r\ndate: %s\r\ncontent-type: text/html; charset=UTF-8\r\ncontent-length: %d\r\n\r\n",
-  "Lundi 35 Mai",#buffer))
+local function serve_client( client, buffer, args)
+  local cookie = "Cookie: " .. args --just a quick test (FIXME remove)
+
+  client:send( string.format("HTTP/1.0 200 OK\r\nserver: lunetoile\r\ndate: %s\r\ncontent-type: text/html; charset=UTF-8\r\ncontent-length: %d\r\n%s\r\n",
+  "Lundi 35 Mai",#buffer, cookie or ""))
   client:send( buffer)
 
 end
 
 
-local function get( client, path)
+local function get( client, path, args)
   local special = { ["/whoami"] = whoami,
                     ["/quit"] = quit ,
                     ["/"] = function() return read_file("index.html") end }
   local buffer = ""
 
   if special[path] then
-    buffer = special[path]( client)
+    buffer = special[path]( client, args)
   else
     local header = read_header( client) -- TODO header : no use for the moment
     buffer = read_file( urldecode(path))
     -- get file
   end
-  serve_client( client, buffer)
+  serve_client( client, buffer, args)
 end
 
-local function call_command( client, command, path)
+local function call_command( client, command, url)
   local command_list = { GET = get }
   if command_list[command] then
-    command_list[command]( client, path)
+    local path,args = string.match( url,"(.*)%?(.*)")
+    command_list[command]( client, path, args)
   else
     print("[error] Unknown command : client ",client,"asked ",command)
   end
@@ -130,15 +133,10 @@ local function mainloop()
 
       -- first line : contains command, path, protocol
       local line = client:receive()
-      local command,path,proto = line:match("([A-Z]+)%s+(%S+)%s+(HTTP.+)")
-      print (string.format('command:"%s" path:"%s" proto:"%s"',command,path,proto))
+      local command,url,proto = line:match("([A-Z]+)%s+(%S+)%s+(HTTP.+)")
+      print (string.format('command:"%s" url:"%s" proto:"%s"',command,url,proto))
 
-      local args = nil
-      path,args = string.match( path,"(.*)%?(.*)")
-      print(args)
-
-      path = string.match( path,"[^?]+") -- remove parameters from URL
-      call_command( client, command, path)
+      call_command( client, command, url)
 
       client:close()
     end
