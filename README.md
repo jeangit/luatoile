@@ -11,7 +11,8 @@ There are two goals for this project.
 ### deps needed
 
 1. Obviously, `lua`. Tested with 5.3 and 5.2 flavors, not with `luajit` (but should work).
-1. `luasocket`. You can install it with `luarocks` package manager, or directly from your distribution (or from the sources).
+1. `luasocket`. You can install it with `luarocks` package manager, or directly from your distribution (or from the sources). Package for Archlinux: `lua-socket`.
+1. `LFS`. It's LuaFileSystem, used by the file manager. Install it the same way you did for `luasocket`. Package for Archlinux: `lua-filesystem`.
 
 It is planned to provide an all-in-one distribution for packaging projects, but for the moment, you have to install yourself tho deps.
 
@@ -23,11 +24,13 @@ There are some tools available, you call them via the URL.
 
 name | action | localhost only
 -----|--------|---------------
+`/list`|prints dir of `path` arguments| yes
 `/quit`|end the server| yes
 `/whoami`|returns client's header| no
 
 ## :construction: TODO :construction:
 - [x] serving files to clients.
+- [ ] File manager (upload and download files).
 - [ ] parallelized clients.
 - [ ] cookies. :cookie:
 - [ ] config file.
