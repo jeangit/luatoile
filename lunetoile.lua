@@ -1,6 +1,7 @@
 #!/usr/bin/env lua
--- $$DATE$$ : lun. 20 janv. 2020 14:14:34
+-- $$DATE$$ : mar. 21 janv. 2020 20:08:56
 
+local lfs = require"lfs"
 local socket = require"socket"
 local client,server
 local is_running = true
@@ -27,6 +28,38 @@ local function urldecode( url)
                 return d
             end)
   return decoded
+end
+
+local function is_localhost( client)
+  local is_local = false
+  -- getsockname returns ip,port,proto
+  local ip = client:getsockname()
+  if ip == "127.0.0.1" then is_local = true end
+
+  return is_local
+end
+
+local function dir( local_path)
+  local directory = {}
+  for f in lfs.dir( local_path) do
+    table.insert( directory, f)
+  end
+
+  table.sort( directory)
+  return directory
+end
+
+local function list_dir( path, args)
+  local directory = { "FORBIDDEN" }
+  if is_localhost( client) then
+    local local_path = string.match( args, ".*path=(.*)[%&].*") or "./"
+    directory = dir( local_path)
+  end
+
+  local buffer = "<html><body>"
+  for i = 2,#directory do buffer = buffer .. directory[i] .. "<br>" end
+  buffer = buffer .. "</body></html>"
+  return buffer
 end
 
 
@@ -68,14 +101,6 @@ local function whoami( client)
   return table.concat(buffer,"\n")
 end
 
-local function is_localhost( client)
-  local is_local = false
-  -- getsockname returns ip,port,proto
-  local ip = client:getsockname()
-  if ip == "127.0.0.1" then is_local = true end
-
-  return is_local
-end
 
 local function quit( client)
   local buffer = nil
@@ -108,9 +133,9 @@ end
 local function get( client, path, args)
   local special = { ["/whoami"] = whoami,
                     ["/quit"] = quit ,
+                    ["/list"] = list_dir,
                     ["/"] = function() return read_file("index.html") end }
   local buffer = ""
-
   if special[path] then
     buffer = special[path]( client, args)
   else
@@ -124,7 +149,7 @@ end
 local function call_command( client, command, url)
   local command_list = { GET = get }
   if command_list[command] then
-    local path,args = string.match( url,"(.*)%?(.*)")
+    local path,args = string.match( url,"([^%?]*)%??(.*)")
     command_list[command]( client, path, args)
   else
     print("[error] Unknown command : client ",client,"asked ",command)
