@@ -1,5 +1,5 @@
 #!/usr/bin/env lua
--- $$DATE$$ : mar. 21 janv. 2020 22:06:02
+-- $$DATE$$ : mer. 22 janv. 2020 16:06:49
 
 local lfs = require"lfs"
 local socket = require"socket"
@@ -51,13 +51,19 @@ end
 
 local function list_dir( path, args)
   local directory = { "FORBIDDEN" }
+  local local_path = string.match( args, ".*path=(.*)[%/%&]?.*") or "./"
   if is_localhost( client) then
-    local local_path = string.match( args, ".*path=(.*)[%&].*") or "./"
     directory = dir( local_path)
   end
 
   local buffer = "<html><body>"
-  for i = 2,#directory do buffer = buffer .. directory[i] .. "<br>" end
+  for i = 2,#directory do
+    local name_with_path = local_path .. "/" .. directory[i]
+    if lfs.attributes( name_with_path, "mode") == "directory" then
+      directory[i] = string.format("<a href=/list?path=%s>%s</a>",name_with_path,directory[i])
+    end
+    buffer = buffer .. directory[i] .. "<br>"
+  end
   buffer = buffer .. "</body></html>"
   return buffer
 end
