@@ -1,17 +1,18 @@
 #!/usr/bin/env lua
--- $$DATE$$ : jeu. 23 janv. 2020 13:56:39
+-- $$DATE$$ : jeu. 23 janv. 2020 20:05:36
 
 local lfs = require"lfs"
 local socket = require"socket"
 local client,server
 local is_running = true
-local root = "./"
+local root
 local timeout = 1/100 --10ms
 
 local function init()
-  print("Running with ".. _VERSION)
-  local root = arg[1] or "index.html"
+  root = string.gsub(arg[1],"([^%/])$","%1/") or "./"
   local port = arg[2] or 8088
+  print("Running with ".. _VERSION)
+  print(string.format("root dir : %s\nlisten on: %d\n", root, port))
   server = socket.bind( "0.0.0.0", 8088)
   if not server:settimeout( timeout) then
     print("[ERROR] init()->server:settimeout")
@@ -58,8 +59,10 @@ end
 
 local function list_dir( client, args)
   local directory = nil
-  local local_path = string.match( args, ".*path=(.*)[%/%&]?.*") --or "."
-  local_path = root .. local_path
+  local relative_local_path = string.match( args, ".*path=(.*)[%/%&]?.*") or "."
+  relative_local_path = string.gsub(relative_local_path,"%.[%.]+[/$]?","")
+  local local_path = root .. relative_local_path
+  print("demande: ",local_path)
   if is_localhost( client) then
     directory = dir( local_path)
   end
@@ -67,22 +70,24 @@ local function list_dir( client, args)
   local buffer = "<html><body>"
   if directory then
     for i = 2,#directory do
-      local name_with_path = local_path .. "/" .. directory[i]
+      local name_with_path = relative_local_path .. "/" .. directory[i] -- FIXME remove
       if lfs.attributes( name_with_path, "mode") == "directory" then
         if directory[i] == ".." then
-          print(name_with_path)
-          local previous_dir = string.match(name_with_path,"(.*)/.+/%.%.[/]?") or root
+          --local previous_dir = string.match(relative_local_path,"(.*)/.+/%.%.[/]?") or "./" --root
+          local previous_dir = string.match(relative_local_path,"(.*)/.+[/]?") or "./" --root
+          print(relative_local_path, previous_dir)
           directory[i] = string.format("<a href=/list?path=%s>..</a>", previous_dir)
         else
-          directory[i] = string.format("<a href=/list?path=%s>%s</a>",name_with_path,directory[i])
+          directory[i] = string.format("<a href=/list?path=%s>%s</a>", name_with_path, directory[i])
+          --directory[i] = string.format("<a href=/list?path=%s>%s</a>", directory[i], directory[i])
         end
       end
       buffer = buffer .. directory[i] .. "<br>"
     end
   else
-    buffer = buffer .. "What are you doing here ?<br><a href=\"/\">Come back home</a>"
+    buffer = buffer .. "What are you doing here ?<br>"
   end
-  buffer = buffer .. "</body></html>"
+  buffer = buffer .. "<br><a href=\"/\"><h3>Go back home</h3></a></body></html>"
   return buffer
 end
 
