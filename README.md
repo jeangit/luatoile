@@ -19,12 +19,14 @@ It is planned to provide an all-in-one distribution for packaging projects, but 
 ### launch
 Launch `lunetoile.lua` and it will serve you well (even so, read [the alternatives](#alternatives-in-lua))
 
-### tools
-There are some tools available, you call them via the URL.
+### built-in
+There are some tools availables, for diagnostics or commons use.
+
+You call them via the URL.
 
 name | action | localhost only
 -----|--------|---------------
-`/list`|prints dir of `path` arguments| yes
+`/list`|prints dir of `path` arguments| no (but chrooted)
 `/quit`|end the server| yes
 `/whoami`|returns client's header| no
 

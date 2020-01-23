@@ -1,5 +1,5 @@
 #!/usr/bin/env lua
--- $$DATE$$ : mer. 22 janv. 2020 16:06:49
+-- $$DATE$$ : jeu. 23 janv. 2020 13:56:39
 
 local lfs = require"lfs"
 local socket = require"socket"
@@ -41,28 +41,46 @@ end
 
 local function dir( local_path)
   local directory = {}
-  for f in lfs.dir( local_path) do
-    table.insert( directory, f)
+  -- TODO: tester ouverture de répertoire « Permission Denied »
+  local check = io.open( local_path,"r")
+  if check then
+    for f in lfs.dir( local_path) do
+      table.insert( directory, f)
+    end
+    io.close(check)
+    table.sort( directory)
+  else
+    directory = nil
   end
 
-  table.sort( directory)
   return directory
 end
 
-local function list_dir( path, args)
-  local directory = { "FORBIDDEN" }
-  local local_path = string.match( args, ".*path=(.*)[%/%&]?.*") or "./"
+local function list_dir( client, args)
+  local directory = nil
+  local local_path = string.match( args, ".*path=(.*)[%/%&]?.*") --or "."
+  local_path = root .. local_path
   if is_localhost( client) then
     directory = dir( local_path)
   end
 
   local buffer = "<html><body>"
-  for i = 2,#directory do
-    local name_with_path = local_path .. "/" .. directory[i]
-    if lfs.attributes( name_with_path, "mode") == "directory" then
-      directory[i] = string.format("<a href=/list?path=%s>%s</a>",name_with_path,directory[i])
+  if directory then
+    for i = 2,#directory do
+      local name_with_path = local_path .. "/" .. directory[i]
+      if lfs.attributes( name_with_path, "mode") == "directory" then
+        if directory[i] == ".." then
+          print(name_with_path)
+          local previous_dir = string.match(name_with_path,"(.*)/.+/%.%.[/]?") or root
+          directory[i] = string.format("<a href=/list?path=%s>..</a>", previous_dir)
+        else
+          directory[i] = string.format("<a href=/list?path=%s>%s</a>",name_with_path,directory[i])
+        end
+      end
+      buffer = buffer .. directory[i] .. "<br>"
     end
-    buffer = buffer .. directory[i] .. "<br>"
+  else
+    buffer = buffer .. "What are you doing here ?<br><a href=\"/\">Come back home</a>"
   end
   buffer = buffer .. "</body></html>"
   return buffer
