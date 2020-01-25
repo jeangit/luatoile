@@ -1,5 +1,5 @@
 #!/usr/bin/env lua
--- $$DATE$$ : Sat 25 Jan 2020 18:25:31PM
+-- $$DATE$$ : Sat 25 Jan 2020 23:31:34PM
 
 local lfs = require"lfs"
 local socket = require"socket"
@@ -59,8 +59,14 @@ end
 
 local function list_dir( client, args)
   local directory = nil
-  local relative_local_path = string.match( args, ".*path=(.*)[%/%&]?.*") or "."
-  relative_local_path = string.gsub(relative_local_path,"%.[%.]+[/$]?","")
+  --local relative_local_path = string.match( args, ".*path=(.*)[%/%&]?.*") or "."
+  local relative_local_path = args["path"]
+  if relative_local_path then
+    -- remove ending slash (optional)  and dots
+    relative_local_path = string.gsub(relative_local_path,"%.[%.]+[/$]?","")
+  else
+    relative_local_path = "."
+  end
   local local_path = root .. relative_local_path
   print("demande: ",local_path)
   if is_localhost( client) then
@@ -152,7 +158,8 @@ local function serve_client( client, buffer, args)
   Cookies are either "session cookies" which typically are forgotten when the session is over which is often translated to equal when browser quits, or the cookies aren't session cookies they have expiration dates after which the client will throw them away.
 --]]
 -- Cookies are set to the client with the Set-Cookie: header and are sent to servers with the Cookie: header.
-  local cookie = "Set-Cookie: " .. args --just a quick test (FIXME remove)
+  --local cookie = "Set-Cookie: " .. args --just a quick test (FIXME faire une fonction d'extraction)
+  local cookie = args["Set-Cookie"] and "Set-Cookie: " .. args["Set-Cookie"] or ""
 
   -- we need \r\n\r\n to finish the header part
   client:send( string.format("HTTP/1.0 200 OK\r\nserver: lunetoile\r\ndate: %s\r\ncontent-type: text/html; charset=UTF-8\r\ncontent-length: %d\r\n%s\r\n\r\n",
@@ -161,7 +168,18 @@ local function serve_client( client, buffer, args)
 
 end
 
+-- factoriser avec serve_client()
 local function download( client, args)
+  for k,v in pairs(args) do print(k,v) end
+  local filename = args["path"]
+  local filesize = lfs.attributes( filename, "size") or 0
+  print("taille",filesize)
+
+  local cookie = args["Set-Cookie"] and "Set-Cookie: " .. args["Set-Cookie"] or ""
+
+  client:send( string.format("HTTP/1.0 200 OK\r\nserver: lunetoile\r\ndate: %s\r\ncontent-type: application/octet-stream; charset=UTF-8\r\ncontent-length: %d\r\n%s\r\n\r\n",
+  "Lundi 35 Mai", filesize, cookie))
+
 
 end
 
@@ -188,7 +206,12 @@ end
 local function call_command( client, command, url)
   local command_list = { GET = get }
   if command_list[command] then
-    local path,args = string.match( url,"([^%?]*)%??(.*)")
+    -- extracting first part of url (path) and the optionnal arguments after '?'
+    local path,str_args = string.match( url,"([^%?]*)%??(.*)")
+    -- put the arguments in a table
+    local args = {}
+    for k,v in string.gmatch( str_args, "([^=]+)=([^&]+)") do args[k] = v end
+    -- for k,v in pairs(args) do print("args",k,v) end
     command_list[command]( client, path, args)
   else
     print("[error] Unknown command : client ",client,"asked ",command)
