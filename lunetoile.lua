@@ -1,5 +1,5 @@
 #!/usr/bin/env lua
--- $$DATE$$ : jeu. 23 janv. 2020 20:05:36
+-- $$DATE$$ : Sat 25 Jan 2020 18:25:31PM
 
 local lfs = require"lfs"
 local socket = require"socket"
@@ -9,7 +9,7 @@ local root
 local timeout = 1/100 --10ms
 
 local function init()
-  root = string.gsub(arg[1],"([^%/])$","%1/") or "./"
+  root = arg[1] and tring.gsub(arg[1],"([^%/])$","%1/") or "./"
   local port = arg[2] or 8088
   print("Running with ".. _VERSION)
   print(string.format("root dir : %s\nlisten on: %d\n", root, port))
@@ -70,18 +70,21 @@ local function list_dir( client, args)
   local buffer = "<html><body>"
   if directory then
     for i = 2,#directory do
-      local name_with_path = relative_local_path .. "/" .. directory[i] -- FIXME remove
+      local name_with_path = relative_local_path .. "/" .. directory[i]
       if lfs.attributes( name_with_path, "mode") == "directory" then
         if directory[i] == ".." then
           --local previous_dir = string.match(relative_local_path,"(.*)/.+/%.%.[/]?") or "./" --root
           local previous_dir = string.match(relative_local_path,"(.*)/.+[/]?") or "./" --root
           print(relative_local_path, previous_dir)
-          directory[i] = string.format("<a href=/list?path=%s>..</a>", previous_dir)
+          directory[i] = string.format("<a href=/list?path=%s>[..]</a>", previous_dir)
         else
-          directory[i] = string.format("<a href=/list?path=%s>%s</a>", name_with_path, directory[i])
+          directory[i] = string.format("<a href=/list?path=%s>[%s]</a>", name_with_path, directory[i])
           --directory[i] = string.format("<a href=/list?path=%s>%s</a>", directory[i], directory[i])
         end
+      else -- ce n'est pas un directory
+        directory[i] = string.format('<a href="%s">%s</a>',"/download?path=" .. name_with_path,directory[i])
       end
+      -- FIXME : utiliser une table plutot que cette horrible concaténation
       buffer = buffer .. directory[i] .. "<br>"
     end
   else
@@ -158,11 +161,16 @@ local function serve_client( client, buffer, args)
 
 end
 
+local function download( client, args)
+
+end
+
 
 local function get( client, path, args)
   local special = { ["/whoami"] = whoami,
                     ["/quit"] = quit ,
                     ["/list"] = list_dir,
+                    ["/download"] = download,
                     ["/"] = function() return read_file("index.html") end }
   local buffer = ""
   if special[path] then
@@ -172,7 +180,9 @@ local function get( client, path, args)
     buffer = read_file( urldecode(path))
     -- get file
   end
-  serve_client( client, buffer, args)
+  if buffer then
+    serve_client( client, buffer, args)
+  end
 end
 
 local function call_command( client, command, url)
