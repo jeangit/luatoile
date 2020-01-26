@@ -1,5 +1,5 @@
 #!/usr/bin/env lua
--- $$DATE$$ : Sat 25 Jan 2020 23:31:34PM
+-- $$DATE$$ : Sun 26 Jan 2020 10:51:39AM
 
 local lfs = require"lfs"
 local socket = require"socket"
@@ -88,7 +88,8 @@ local function list_dir( client, args)
           --directory[i] = string.format("<a href=/list?path=%s>%s</a>", directory[i], directory[i])
         end
       else -- ce n'est pas un directory
-        directory[i] = string.format('<a href="%s">%s</a>',"/download?path=" .. name_with_path,directory[i])
+        directory[i] = string.format('<a href=/download/%s?path=%s>%s</a>',
+                        directory[i],name_with_path, directory[i])
       end
       -- FIXME : utiliser une table plutot que cette horrible concaténation
       buffer = buffer .. directory[i] .. "<br>"
@@ -188,10 +189,12 @@ local function get( client, path, args)
   local special = { ["/whoami"] = whoami,
                     ["/quit"] = quit ,
                     ["/list"] = list_dir,
-                    ["/download"] = download,
                     ["/"] = function() return read_file("index.html") end }
   local buffer = ""
-  if special[path] then
+  -- /download/ has to be treat separatly
+  if string.match( path,"/download/") then
+    download( client, args)
+  elseif special[path] then
     buffer = special[path]( client, args)
   else
     local header = read_header( client) -- TODO header : no use for the moment
