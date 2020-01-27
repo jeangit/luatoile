@@ -1,5 +1,5 @@
 #!/usr/bin/env lua
--- $$DATE$$ : Sun 26 Jan 2020 10:51:39AM
+-- $$DATE$$ : lun. 27 janv. 2020 20:06:56
 
 local lfs = require"lfs"
 local socket = require"socket"
@@ -154,33 +154,27 @@ local function quit( client)
 end
 
 
-local function serve_client( client, buffer, args)
+local function serve_header_to_client( client, args, contentlength, contenttype)
 --[[
   Cookies are either "session cookies" which typically are forgotten when the session is over which is often translated to equal when browser quits, or the cookies aren't session cookies they have expiration dates after which the client will throw them away.
 --]]
 -- Cookies are set to the client with the Set-Cookie: header and are sent to servers with the Cookie: header.
   --local cookie = "Set-Cookie: " .. args --just a quick test (FIXME faire une fonction d'extraction)
-  local cookie = args["Set-Cookie"] and "Set-Cookie: " .. args["Set-Cookie"] or ""
+  local cookie = args["Cookie"] and "Set-Cookie: " .. args["Cookie"] or ""
 
   -- we need \r\n\r\n to finish the header part
-  client:send( string.format("HTTP/1.0 200 OK\r\nserver: lunetoile\r\ndate: %s\r\ncontent-type: text/html; charset=UTF-8\r\ncontent-length: %d\r\n%s\r\n\r\n",
-  "Lundi 35 Mai",#buffer, cookie or ""))
-  client:send( buffer)
+  client:send( string.format("HTTP/1.0 200 OK\r\nserver: lunetoile\r\ndate: %s\r\ncontent-type: %s; charset=UTF-8\r\ncontent-length: %d\r\n%s\r\n\r\n",
+  "Lundi 35 Mai", contenttype, contentlength, cookie or ""))
 
 end
 
--- factoriser avec serve_client()
+
 local function download( client, args)
-  for k,v in pairs(args) do print(k,v) end
   local filename = args["path"]
   local filesize = lfs.attributes( filename, "size") or 0
-  print("taille",filesize)
+  print("[download] file size:",filesize)
 
-  local cookie = args["Set-Cookie"] and "Set-Cookie: " .. args["Set-Cookie"] or ""
-
-  client:send( string.format("HTTP/1.0 200 OK\r\nserver: lunetoile\r\ndate: %s\r\ncontent-type: application/octet-stream; charset=UTF-8\r\ncontent-length: %d\r\n%s\r\n\r\n",
-  "Lundi 35 Mai", filesize, cookie))
-
+  serve_header_to_client( client, args, filesize, "application/octet-stream")
 
 end
 
@@ -191,7 +185,7 @@ local function get( client, path, args)
                     ["/list"] = list_dir,
                     ["/"] = function() return read_file("index.html") end }
   local buffer = ""
-  -- /download/ has to be treat separatly
+  -- /download/ has to be treat apart
   if string.match( path,"/download/") then
     download( client, args)
   elseif special[path] then
@@ -202,7 +196,8 @@ local function get( client, path, args)
     -- get file
   end
   if buffer then
-    serve_client( client, buffer, args)
+    serve_header_to_client( client, args, #buffer, "text/html")
+    client:send( buffer)
   end
 end
 
