@@ -1,18 +1,21 @@
 #!/usr/bin/env lua
--- $$DATE$$ : lun. 27 janv. 2020 20:06:56
+-- $$DATE$$ : mar. 28 janv. 2020 20:04:16
 
 local lfs = require"lfs"
 local socket = require"socket"
 local client,server
 local is_running = true
-local root
+local root, root_static
 local timeout = 1/100 --10ms
 
 local function init()
-  root = arg[1] and tring.gsub(arg[1],"([^%/])$","%1/") or "./"
-  local port = arg[2] or 8088
+  -- TODO config file !
+  root = arg[1] and string.gsub(arg[1],"([^%/])$","%1/") or "./"
+  root_static = arg[2] and string.gsub(arg[2],"([^%/])$","%1/") or "./"
+  local port = arg[3] or 8088
   print("Running with ".. _VERSION)
-  print(string.format("root dir : %s\nlisten on: %d\n", root, port))
+  print(string.format("root dir : %s\nstatic root dir: %s\nlisten on: %d\n",
+                      root, root_static, port))
   server = socket.bind( "0.0.0.0", 8088)
   if not server:settimeout( timeout) then
     print("[ERROR] init()->server:settimeout")
@@ -59,27 +62,31 @@ end
 
 local function list_dir( client, args)
   local directory = nil
+  local local_path = nil
   --local relative_local_path = string.match( args, ".*path=(.*)[%/%&]?.*") or "."
   local relative_local_path = args["path"]
   if relative_local_path then
     -- remove ending slash (optional)  and dots
-    relative_local_path = string.gsub(relative_local_path,"%.[%.]+[/$]?","")
+    relative_local_path = string.gsub( relative_local_path, "%.[%.]+[/$]?", "")
+    local_path = relative_local_path
+    print("passe ici")
   else
-    relative_local_path = "."
+    local_path = root_static
   end
-  local local_path = root .. relative_local_path
+  --local local_path = root_static .. relative_local_path
   print("demande: ",local_path)
   if is_localhost( client) then
     directory = dir( local_path)
   end
 
-  local buffer = "<html><body>"
+  local buffer = { "<html><body>" }
   if directory then
     for i = 2,#directory do
-      local name_with_path = relative_local_path .. "/" .. directory[i]
+      local name_with_path = local_path .. "/" .. directory[i]
       if lfs.attributes( name_with_path, "mode") == "directory" then
         if directory[i] == ".." then
           --local previous_dir = string.match(relative_local_path,"(.*)/.+/%.%.[/]?") or "./" --root
+          -- we can either go upper in the dir tree, or we are already at the top (./) .
           local previous_dir = string.match(relative_local_path,"(.*)/.+[/]?") or "./" --root
           print(relative_local_path, previous_dir)
           directory[i] = string.format("<a href=/list?path=%s>[..]</a>", previous_dir)
@@ -92,13 +99,16 @@ local function list_dir( client, args)
                         directory[i],name_with_path, directory[i])
       end
       -- FIXME : utiliser une table plutot que cette horrible concaténation
-      buffer = buffer .. directory[i] .. "<br>"
+      -- buffer = buffer .. directory[i] .. "<br>"
+      table.insert( buffer, directory[i])
     end
   else
-    buffer = buffer .. "What are you doing here ?<br>"
+    --buffer = buffer .. "What are you doing here ?<br>"
+    table.insert( buffer, "What are you doing here ?")
   end
-  buffer = buffer .. "<br><a href=\"/\"><h3>Go back home</h3></a></body></html>"
-  return buffer
+  --buffer = buffer .. "<br><a href=\"/\"><h3>Go back home</h3></a></body></html>"
+  table.insert( buffer, "<br><a href=\"/\"><h3>Go back home</h3></a></body></html>")
+  return table.concat( buffer,"<br>")
 end
 
 
@@ -122,7 +132,8 @@ local function read_file( filename)
   if hfile then
     buffer = hfile:read("*a")
     hfile:close()
-  else
+  end
+  if buffer == nil then
     buffer = "<html><body><h1>404 : What do you want with " .. filename .. " ?</h1></body></html>"
   end
 
