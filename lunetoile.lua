@@ -1,5 +1,5 @@
 #!/usr/bin/env lua
--- $$DATE$$ : sam. 01 févr. 2020 17:03:05
+-- $$DATE$$ : sam. 01 févr. 2020 17:23:43
 
 local lfs = require"lfs"
 local socket = require"socket"
@@ -90,7 +90,6 @@ local function list_dir( client, args)
           directory[i] = string.format("<a href=/list?path=%s>[..]</a>", previous_dir)
         else
           directory[i] = string.format("<a href=/list?path=%s>[%s]</a>", path_argument .. "/" .. directory[i], directory[i])
-          --directory[i] = string.format("<a href=/list?path=%s>[%s]</a>", directory[i], directory[i])
         end
       else -- ce n'est pas un directory
         directory[i] = string.format('<a href=/download/%s?path=%s>%s</a>',
@@ -132,7 +131,7 @@ local function read_file( filename)
     hfile:close()
   end
   if buffer == nil then
-    buffer = "<html><body><h1>404 : What do you want with " .. filename .. " ?</h1></body></html>"
+    buffer = "<html><body><h1>404 : Unavailable " .. filename .. "</h1><br><a href=\"/\"><h3>Go back home</h3></a></body></html>"
   end
 
   return buffer
@@ -179,7 +178,7 @@ end
 
 
 local function download( client, args)
-  local filename = args["path"]
+  local filename = root_static .. args["path"]
   local filesize = lfs.attributes( filename, "size") or 0
   print("[download] file size:",filesize)
 
