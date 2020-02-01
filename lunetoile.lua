@@ -1,5 +1,5 @@
 #!/usr/bin/env lua
--- $$DATE$$ : mar. 28 janv. 2020 20:04:16
+-- $$DATE$$ : sam. 01 févr. 2020 17:03:05
 
 local lfs = require"lfs"
 local socket = require"socket"
@@ -12,6 +12,10 @@ local function init()
   -- TODO config file !
   root = arg[1] and string.gsub(arg[1],"([^%/])$","%1/") or "./"
   root_static = arg[2] and string.gsub(arg[2],"([^%/])$","%1/") or "./"
+  if root == root_static then
+    print("[ERROR] root and root_static cannot be the same!")
+    os.exit(1)
+  end
   local port = arg[3] or 8088
   print("Running with ".. _VERSION)
   print(string.format("root dir : %s\nstatic root dir: %s\nlisten on: %d\n",
@@ -43,12 +47,12 @@ local function is_localhost( client)
   return is_local
 end
 
-local function dir( local_path)
+local function dir( path)
   local directory = {}
   -- TODO: tester ouverture de répertoire « Permission Denied »
-  local check = io.open( local_path,"r")
+  local check = io.open( path,"r")
   if check then
-    for f in lfs.dir( local_path) do
+    for f in lfs.dir( path) do
       table.insert( directory, f)
     end
     io.close(check)
@@ -62,41 +66,35 @@ end
 
 local function list_dir( client, args)
   local directory = nil
-  local local_path = nil
-  --local relative_local_path = string.match( args, ".*path=(.*)[%/%&]?.*") or "."
-  local relative_local_path = args["path"]
-  if relative_local_path then
-    -- remove ending slash (optional)  and dots
-    relative_local_path = string.gsub( relative_local_path, "%.[%.]+[/$]?", "")
-    local_path = relative_local_path
-    print("passe ici")
-  else
-    local_path = root_static
-  end
-  --local local_path = root_static .. relative_local_path
-  print("demande: ",local_path)
+  local path_argument = args["path"] or ""
+  --if path_argument then
+    -- remove double dots (..) and ending slash (optional)
+    path_argument = string.gsub( path_argument, "%.[%.]+[/$]?", "")
+  --end
+  local absolute_path = root_static .. path_argument
+  print("dir( " .. absolute_path)
   if is_localhost( client) then
-    directory = dir( local_path)
+    directory = dir( absolute_path)
   end
 
   local buffer = { "<html><body>" }
   if directory then
     for i = 2,#directory do
-      local name_with_path = local_path .. "/" .. directory[i]
+      local name_with_path = absolute_path .. "/" .. directory[i]
       if lfs.attributes( name_with_path, "mode") == "directory" then
         if directory[i] == ".." then
-          --local previous_dir = string.match(relative_local_path,"(.*)/.+/%.%.[/]?") or "./" --root
+          --local previous_dir = string.match(path_argument,"(.*)/.+/%.%.[/]?") or "./" --root
           -- we can either go upper in the dir tree, or we are already at the top (./) .
-          local previous_dir = string.match(relative_local_path,"(.*)/.+[/]?") or "./" --root
-          print(relative_local_path, previous_dir)
+          print("absolute_path",absolute_path)
+          local previous_dir = string.match(path_argument,"(.*)/.+[/]?") or ""
           directory[i] = string.format("<a href=/list?path=%s>[..]</a>", previous_dir)
         else
-          directory[i] = string.format("<a href=/list?path=%s>[%s]</a>", name_with_path, directory[i])
-          --directory[i] = string.format("<a href=/list?path=%s>%s</a>", directory[i], directory[i])
+          directory[i] = string.format("<a href=/list?path=%s>[%s]</a>", path_argument .. "/" .. directory[i], directory[i])
+          --directory[i] = string.format("<a href=/list?path=%s>[%s]</a>", directory[i], directory[i])
         end
       else -- ce n'est pas un directory
         directory[i] = string.format('<a href=/download/%s?path=%s>%s</a>',
-                        directory[i],name_with_path, directory[i])
+                        directory[i],path_argument .. "/" .. directory[i], directory[i])
       end
       -- FIXME : utiliser une table plutot que cette horrible concaténation
       -- buffer = buffer .. directory[i] .. "<br>"
