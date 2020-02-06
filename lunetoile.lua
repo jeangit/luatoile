@@ -1,5 +1,5 @@
 #!/usr/bin/env lua
--- $$DATE$$ : sam. 01 févr. 2020 17:23:43
+-- $$DATE$$ : jeu. 06 févr. 2020 19:45:49
 
 local lfs = require"lfs"
 local socket = require"socket"
@@ -7,6 +7,17 @@ local client,server
 local is_running = true
 local root, root_static
 local timeout = 1/100 --10ms
+
+local function log_client(client,msg)
+  local stack_level = 2
+  --local stack = debug.traceback(nil,2) -- skip current address (level 1)
+  local caller = debug.getinfo( stack_level,'n').name
+  if (caller == '?') then
+    -- it was called from a function referenced in a table, give line instead
+    caller = "line: " .. debug.getinfo( stack_level).currentline
+  end
+  print(string.format("[%s] %s : %s", caller, client:getsockname(), msg))
+end
 
 local function init()
   -- TODO config file !
@@ -75,6 +86,8 @@ local function list_dir( client, args)
   print("dir( " .. absolute_path)
   if is_localhost( client) then
     directory = dir( absolute_path)
+  else
+    log_client( client," attempted to list " .. absolute_path)
   end
 
   local buffer = { "<html><body>" }
@@ -102,6 +115,7 @@ local function list_dir( client, args)
   else
     --buffer = buffer .. "What are you doing here ?<br>"
     table.insert( buffer, "What are you doing here ?")
+    log_client( client, "failed to list " .. absolute_path)
   end
   --buffer = buffer .. "<br><a href=\"/\"><h3>Go back home</h3></a></body></html>"
   table.insert( buffer, "<br><a href=\"/\"><h3>Go back home</h3></a></body></html>")
@@ -220,7 +234,8 @@ local function call_command( client, command, url)
     -- for k,v in pairs(args) do print("args",k,v) end
     command_list[command]( client, path, args)
   else
-    print("[error] Unknown command : client ",client,"asked ",command)
+    command = command or "no command (nil)"
+    log_client( client, "Unknown command : " .. command)
   end
 end
 
@@ -232,9 +247,12 @@ local function mainloop()
       -- first line : contains command, path, protocol
       local line = client:receive()
       local command,url,proto = line:match("([A-Z]+)%s+(%S+)%s+(HTTP.+)")
-      print (string.format('command:"%s" url:"%s" proto:"%s"',command,url,proto))
-
-      call_command( client, command, url)
+      if line then
+        print (string.format('command:"%s" url:"%s" proto:"%s"',command,url,proto))
+        call_command( client, command, url)
+      else
+        log_client( client, "sending nil requests.")
+      end
 
       client:close()
     end
