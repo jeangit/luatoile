@@ -1,12 +1,14 @@
 #!/usr/bin/env lua
--- $$DATE$$ : jeu. 06 févr. 2020 19:45:49
+-- $$DATE$$ : mar. 18 févr. 2020 11:46:52
 
 local lfs = require"lfs"
 local socket = require"socket"
 local client,server
+local server_name = "lunetoile"
 local is_running = true
 local root, root_static
 local timeout = 1/100 --10ms
+
 
 local function log_client(client,msg)
   local stack_level = 2
@@ -20,7 +22,7 @@ local function log_client(client,msg)
 end
 
 local function init()
-  -- TODO config file !
+  -- TODO config file ! with root, root_static, port number, server name
   root = arg[1] and string.gsub(arg[1],"([^%/])$","%1/") or "./"
   root_static = arg[2] and string.gsub(arg[2],"([^%/])$","%1/") or "./"
   if root == root_static then
@@ -60,7 +62,6 @@ end
 
 local function dir( path)
   local directory = {}
-  -- TODO: tester ouverture de répertoire « Permission Denied »
   local check = io.open( path,"r")
   if check then
     for f in lfs.dir( path) do
@@ -83,7 +84,7 @@ local function list_dir( client, args)
     path_argument = string.gsub( path_argument, "%.[%.]+[/$]?", "")
   --end
   local absolute_path = root_static .. path_argument
-  print("dir( " .. absolute_path)
+  log_client( client, "dir( " .. absolute_path)
   if is_localhost( client) then
     directory = dir( absolute_path)
   else
@@ -108,16 +109,12 @@ local function list_dir( client, args)
         directory[i] = string.format('<a href=/download/%s?path=%s>%s</a>',
                         directory[i],path_argument .. "/" .. directory[i], directory[i])
       end
-      -- FIXME : utiliser une table plutot que cette horrible concaténation
-      -- buffer = buffer .. directory[i] .. "<br>"
       table.insert( buffer, directory[i])
     end
   else
-    --buffer = buffer .. "What are you doing here ?<br>"
     table.insert( buffer, "What are you doing here ?")
     log_client( client, "failed to list " .. absolute_path)
   end
-  --buffer = buffer .. "<br><a href=\"/\"><h3>Go back home</h3></a></body></html>"
   table.insert( buffer, "<br><a href=\"/\"><h3>Go back home</h3></a></body></html>")
   return table.concat( buffer,"<br>")
 end
@@ -185,18 +182,25 @@ local function serve_header_to_client( client, args, contentlength, contenttype)
   local cookie = args["Cookie"] and "Set-Cookie: " .. args["Cookie"] or ""
 
   -- we need \r\n\r\n to finish the header part
-  client:send( string.format("HTTP/1.0 200 OK\r\nserver: lunetoile\r\ndate: %s\r\ncontent-type: %s; charset=UTF-8\r\ncontent-length: %d\r\n%s\r\n\r\n",
-  "Lundi 35 Mai", contenttype, contentlength, cookie or ""))
+  -- TODO FIXME : returns real date, and not 35 mai
+  client:send( string.format("HTTP/1.0 200 OK\r\nserver: %s\r\ndate: %s\r\ncontent-type: %s; charset=UTF-8\r\ncontent-length: %d\r\n%s\r\n\r\n",
+  server_name, "Lundi 35 Mai", contenttype, contentlength, cookie or ""))
 
 end
 
 
 local function download( client, args)
-  local filename = root_static .. args["path"]
+  local path = args["path"] or "invalid"
+  local filename = root_static .. path
   local filesize = lfs.attributes( filename, "size") or 0
   print("[download] file size:",filesize)
 
-  serve_header_to_client( client, args, filesize, "application/octet-stream")
+  if (filesize > 0) then
+    -- TODO FIXME for the moment, the header is downloaded …
+    serve_header_to_client( client, args, filesize, "application/octet-stream")
+  end
+
+  return filesize
 
 end
 
@@ -207,9 +211,11 @@ local function get( client, path, args)
                     ["/list"] = list_dir,
                     ["/"] = function() return read_file("index.html") end }
   local buffer = ""
+  local filesize = 0 -- if download asked
   -- /download/ has to be treat apart
   if string.match( path,"/download/") then
-    download( client, args)
+    filesize = download( client, args)
+    if filesize == 0 then buffer = special["/"]() end -- if illegal download, returns index.html
   elseif special[path] then
     buffer = special[path]( client, args)
   else
@@ -239,8 +245,29 @@ local function call_command( client, command, url)
   end
 end
 
+local function check_clients_connection()
+
+end
+
+local tempo = 0
+
+local function delay()
+  local sleep_value = 0.05
+  local tempo_limit = 5/sleep_value -- value for 5 seconds
+  tempo=tempo+1
+  if tempo >= tempo_limit then
+    tempo = 0
+    check_clients_connection()
+  else
+    socket.sleep( sleep_value)
+  end
+end
+
+
 local function mainloop()
-  while is_running do
+  repeat
+
+    -- called at about 100 Hz with no delay (with sleep 0.05, about 20Hz)
     client = server.accept( server)
     if client then
 
@@ -255,8 +282,12 @@ local function mainloop()
       end
 
       client:close()
+
+    else
+      delay()
     end
-  end
+
+  until is_running == false
 end
 
 init()
