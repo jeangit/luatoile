@@ -1,11 +1,12 @@
 #!/usr/bin/env lua
--- $$DATE$$ : mer. 19 févr. 2020 13:55:50
+-- $$DATE$$ : mer. 19 févr. 2020 18:24:04
 
 local lfs = require"lfs"
 local socket = require"socket"
 local client,server
 local clients_sessions = {}
 local server_name = "lunetoile"
+local session_delay = 3600 --length of client session (in seconds)
 local is_running = true
 local root, root_static
 local timeout = 1/100 --10ms
@@ -24,7 +25,7 @@ local function log_client(client,msg)
 end
 
 local function init()
-  -- TODO config file ! with root, root_static, port number, server name
+  -- TODO config file ! with root, root_static, port number, server name, session delay
   root = arg[1] and string.gsub(arg[1],"([^%/])$","%1/") or "./"
   root_static = arg[2] and string.gsub(arg[2],"([^%/])$","%1/") or "./"
   if root == root_static then
@@ -117,7 +118,7 @@ end
 local function read_header( client)
   local header = {}
   repeat
-    line = client:receive()
+    line = client:receive() or ""
     local param, value = line:match("^(%S-)%s*:%s*(.*)")
     if (param) then
       header[param]=value
@@ -168,19 +169,31 @@ end
 
 
 local function create_session( client)
-  local session = nil
+  local session_id = nil
   repeat
-    session = os.clock() + math.random(2^20)
-  until clients_sessions[session] == nil
-  clients_sessions[session] = { id=session, ip=client:getsockname() }
+    session_id = tostring( os.clock() + math.random(2^20))
+  until clients_sessions[session_id] == nil
+  local now = os.time()
+  -- date must be given in UTC format (hence the '!' at beginning of format)
+  local expire = os.date("!%a, %d %b %Y %H:%M:%S GMT", now + session_delay)
+  clients_sessions[session_id] = { id=session_id, ip=client:getsockname(), created=now, expire=expire, logged=false }
+  print("creating session",session_id)
+  for i,v in pairs(clients_sessions) do print ("create_session",i,v) end
 
-  return session
+  return clients_sessions[session_id]
 end
 
 
-local function get_session( client, args)
-  local session = args["Cookie"] -- "Cookie" : sended by client.
-  if session == nil then
+local function get_session( client)
+  local header = read_header( client)
+  --for i,v in pairs(header) do print("header",i,v) end
+  local cookie = header["Cookie"] or ""
+  local session_id = string.match( cookie, "id=([0-9%.]+)") -- get the session id from «Cookie» header
+  print("searching session ", session_id)
+  for i,v in pairs(clients_sessions) do print ("get_session",i,v) end
+  local session = clients_sessions[session_id]
+  print("session", session)
+  if session == nil or session.created >= os.time() + session_delay then
     session = create_session( client)
   end
 
@@ -190,12 +203,14 @@ end
 
 local function serve_header_to_client( client, args, contentlength, contenttype)
 --[[
-  Cookies are either "session cookies" which typically are forgotten when the session is over which is often translated to equal when browser quits, or the cookies aren't session cookies they have expiration dates after which the client will throw them away.
+  Cookies are either "session cookies" (forgotten when session is over)
+  or the cookies aren't session cookies they have expiration dates.
+  Cookies are set to the client with the Set-Cookie: header and are sent to servers with the Cookie: header.
+  https://developer.mozilla.org/fr/docs/Web/HTTP/Headers/Set-Cookie
 --]]
--- Cookies are set to the client with the Set-Cookie: header and are sent to servers with the Cookie: header.
-  --local cookie = "Set-Cookie: " .. args --just a quick test (FIXME faire une fonction d'extraction)
-
-  local cookie = "Set-Cookie: id=" .. get_session( client, args) -- "Set-Cookie" : sended by server.
+--  local session = clients_sessions[ get_session( client, args)]
+  local session = get_session( client, args)
+  local cookie = string.format( "Set-Cookie: id=%s; Expires=%s", session.id, session.expire)
 
   -- we need \r\n\r\n to finish the header part
   -- TODO FIXME : returns real date, and not 35 mai
