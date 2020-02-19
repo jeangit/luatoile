@@ -1,14 +1,16 @@
 #!/usr/bin/env lua
--- $$DATE$$ : mar. 18 févr. 2020 11:46:52
+-- $$DATE$$ : mer. 19 févr. 2020 13:55:50
 
 local lfs = require"lfs"
 local socket = require"socket"
 local client,server
+local clients_sessions = {}
 local server_name = "lunetoile"
 local is_running = true
 local root, root_static
 local timeout = 1/100 --10ms
 
+local is_localhost -- will be defined: is_localhost = function( …) …
 
 local function log_client(client,msg)
   local stack_level = 2
@@ -51,14 +53,6 @@ local function urldecode( url)
   return decoded
 end
 
-local function is_localhost( client)
-  local is_local = false
-  -- getsockname returns ip,port,proto
-  local ip = client:getsockname()
-  if ip == "127.0.0.1" then is_local = true end
-
-  return is_local
-end
 
 local function dir( path)
   local directory = {}
@@ -173,13 +167,35 @@ local function quit( client)
 end
 
 
+local function create_session( client)
+  local session = nil
+  repeat
+    session = os.clock() + math.random(2^20)
+  until clients_sessions[session] == nil
+  clients_sessions[session] = { id=session, ip=client:getsockname() }
+
+  return session
+end
+
+
+local function get_session( client, args)
+  local session = args["Cookie"] -- "Cookie" : sended by client.
+  if session == nil then
+    session = create_session( client)
+  end
+
+  return session
+end
+
+
 local function serve_header_to_client( client, args, contentlength, contenttype)
 --[[
   Cookies are either "session cookies" which typically are forgotten when the session is over which is often translated to equal when browser quits, or the cookies aren't session cookies they have expiration dates after which the client will throw them away.
 --]]
 -- Cookies are set to the client with the Set-Cookie: header and are sent to servers with the Cookie: header.
   --local cookie = "Set-Cookie: " .. args --just a quick test (FIXME faire une fonction d'extraction)
-  local cookie = args["Cookie"] and "Set-Cookie: " .. args["Cookie"] or ""
+
+  local cookie = "Set-Cookie: id=" .. get_session( client, args) -- "Set-Cookie" : sended by server.
 
   -- we need \r\n\r\n to finish the header part
   -- TODO FIXME : returns real date, and not 35 mai
@@ -245,9 +261,11 @@ local function call_command( client, command, url)
   end
 end
 
-local function check_clients_connection()
+
+local function check_clients_sessions()
 
 end
+
 
 local tempo = 0
 
@@ -257,10 +275,23 @@ local function delay()
   tempo=tempo+1
   if tempo >= tempo_limit then
     tempo = 0
-    check_clients_connection()
+    check_clients_sessions()
   else
     socket.sleep( sleep_value)
   end
+end
+
+is_localhost = function( client) --as it's prototyped, must be defined like this
+  local is_local = false
+  -- getsockname returns ip,port,proto
+  local ip = client:getsockname()
+  if ip == "127.0.0.1" then
+    is_local = true
+  else
+    log_client( client, " tried to access localhost only feature.")
+  end
+
+  return is_local
 end
 
 
@@ -273,8 +304,8 @@ local function mainloop()
 
       -- first line : contains command, path, protocol
       local line = client:receive()
-      local command,url,proto = line:match("([A-Z]+)%s+(%S+)%s+(HTTP.+)")
       if line then
+        local command,url,proto = line:match("([A-Z]+)%s+(%S+)%s+(HTTP.+)")
         print (string.format('command:"%s" url:"%s" proto:"%s"',command,url,proto))
         call_command( client, command, url)
       else
@@ -290,6 +321,10 @@ local function mainloop()
   until is_running == false
 end
 
-init()
-mainloop()
+local function main()
+  init()
+  mainloop()
+end
 
+
+main()
